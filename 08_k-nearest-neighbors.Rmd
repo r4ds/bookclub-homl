@@ -1,4 +1,4 @@
-# {{{chapter_title}}}
+# K-Nearest Neighbors
 
 **Learning objectives:**
 
