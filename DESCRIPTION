@@ -16,6 +16,7 @@ Imports:
     earth,
     ggplot2,
     gridExtra, 
+    kableExtra, 
     moments, 
     pdp,
     recipes,
