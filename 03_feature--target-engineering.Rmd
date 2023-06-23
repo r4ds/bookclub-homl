@@ -16,7 +16,7 @@
 
 -   Proper implementation
 
-```{r setup, echo = FALSE, warning = FALSE, message = FALSE}
+```{r setup_3, echo = FALSE, warning = FALSE, message = FALSE}
 suppressMessages(library(tidyverse))
 library(visdat)
 library(caret)
