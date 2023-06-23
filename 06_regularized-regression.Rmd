@@ -16,14 +16,14 @@
 
 -   Final thoughts
 
-```{r setup, echo = FALSE, warning = FALSE, message = FALSE}
-suppressMessages(library(tidyverse))
-library(recipes)
+```{r setup_6, echo = FALSE, warning = FALSE, message = FALSE}
+# suppressMessages(library(tidyverse))
+# library(recipes)
 library(rsample)
 library(glmnet)
-library(caret)
+# library(caret)
 library(vip)
-theme_set(theme_light())
+# theme_set(theme_light())
 ```
 
 ## Introduction
