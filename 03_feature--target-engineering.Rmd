@@ -31,7 +31,7 @@ theme_set(theme_light())
 
 Feature engineering is the process of **selecting, extracting, and transforming** relevant features from raw data to create a more informative and suitable input for machine learning algorithms. Also, it involves identifying the most important characteristics of the data and representing them in a way that is compatible with machine learning model input scheme (source: ChatGPT).
 
-## 3.2 Target engineering
+## 3.2 Target engineering {.unnumbered}
 
 Transforming the response (target) variable can lead to predictive improvement, especially with *parametric* models (i.e., models with certain assumptions about the underlying distribution of response and predictor variables). Let's use the `AMES` housing dataset to illustrate this concept.
 
@@ -48,8 +48,6 @@ split  <- rsample::initial_split(ames, prop = 0.7, strata = "Sale_Price")
 ames_train  <- rsample::training(split)
 ames_test   <- rsample::testing(split)
 ```
-
-## 
 
 First look at train dataset.
 
@@ -104,7 +102,7 @@ Comments from the textbook:
 
 -   If your response has negative values, the Yeo-Johnson transformation is very similar to the Box-Cox but does not require the input variables to be strictly positive. To apply, use `step_YeoJohnson()`.
 
-## 3.3 Dealing with missingness
+## 3.3 Dealing with missingness {.unnumbered}
 
 Diagnose `AMES` housing dataset missing values
 
@@ -130,8 +128,6 @@ Visualize missing values
 vis_miss(ames_raw, sort_miss = TRUE)
 ```
 
-## 
-
 Another way to visualize missing values
 
 ```{r data-explorer-missing-values}
@@ -153,8 +149,6 @@ What is the cause for missing values?
 
 ![](chapter-img/03-chapter/missing_values.png){heigth="800px," width="1000px"}
 
-## 
-
 Before we start deleting or imputing missing data, it is advisable to investigate the meaning or cause of the missing values. In the AMES housing data, the creators provide extensive documentation explaining in most cases why variables have missing values.
 
 For example, the variable `Garage Type` missing values identify housing units without garages. The textbook confirms this insight comparing `Garage Type` with `Garage Cars` (size of garage in car capacity) and `Garage Area` (garage total area in square feet).
@@ -167,7 +161,7 @@ ames_raw %>%
 
 The logical conclusion is that we can impute `Garage Type` missing values with a label 'none' or 'no garage'.
 
-## Imputation
+## Imputation {.unnumbered}
 
 *Imputation* is the process of replacing a missing value with a substituted, "best guess" value. Imputation should be one of the first feature engineering steps you take as it will affect any downstream preprocessing.
 
@@ -179,7 +173,7 @@ The logical conclusion is that we can impute `Garage Type` missing values with a
 
 -   MICE (not available in tidymodels recipes)
 
-## 3.4 Feature filtering
+## 3.4 Feature filtering {.unnumbered}
 
 Zero and near-zero variance variables are low-hanging fruit to eliminate.
 
@@ -203,7 +197,7 @@ Other feature filtering methods exists. For example:
 
 Source: <https://www.analyticsvidhya.com/blog/2016/12/introduction-to-feature-selection-methods-with-an-example-or-how-to-select-the-right-variables/>
 
-## 3.5 Numeric feature engineering
+## 3.5 Numeric feature engineering {.unnumbered}
 
 Numeric features can create a host of problems for certain models when their distributions are skewed, contain outliers, or have a wide range in magnitudes.
 
@@ -253,7 +247,7 @@ x1 %>%
     xlab("Value")
 ```
 
-## 3.6 Categorical feature engineering
+## 3.6 Categorical feature engineering {.unnumbered}
 
 Most models require that the predictors take numeric form. There are exceptions; for example, tree-based models naturally handle numeric or categorical features. However, even tree-based models can benefit from preprocessing categorical features.
 
@@ -303,15 +297,13 @@ lump_screen_porch_rec %>%
 
 Comment: `step_normalize` combines both `step_center` and `step_scale`.
 
-## One-hot & dummy encoding
+## One-hot & dummy encoding {.unnumbered}
 
 Many models require that all predictor variables be numeric. Consequently, we need to intelligently transform any categorical variables into numeric representations so that these algorithms can compute. Some packages automate this process (e.g., **h2o** and **caret**) while others do not (e.g., glmnet and keras). There are many ways to recode categorical variables as numeric (e.g., one-hot, ordinal, binary, sum, and Helmert).
 
 The most common is referred to as one-hot encoding, where we transpose our categorical variables so that each level of the feature is represented as a boolean value.
 
 ![Figure 3.9: Eight observations containing a categorical feature X and the difference in how one-hot and dummy encoding transforms this feature.](chapter-img/03-chapter/ohe-vs-dummy.png){heigth="800px," width="1000px"}
-
-## 
 
 We can one-hot or dummy encode with the same function (`step_dummy()`). By default, `step_dummy()` will create a full rank encoding but you can change this by setting `one_hot = TRUE`.
 
@@ -354,7 +346,7 @@ recipe(Sale_Price ~ ., data = ames_train) %>%
      count(Overall_Qual)
 ```
 
-## Alternatives
+## Alternatives {.unnumbered}
 
 There are several alternative categorical encodings that are implemented in various R machine learning engines and are worth exploring. For example, target encoding is the process of replacing a categorical value with the mean (regression) or proportion (classification) of the target variable. For example, target encoding the `Neighborhood` feature would change `North_Ames` to 143517.
 
@@ -366,8 +358,6 @@ ames_train %>%
      kable(caption = "Example of target encoding the Neighborhood feature of the Ames housing data set.") %>%
      kable_styling(bootstrap_options = "striped", full_width = TRUE)
 ```
-
-## 
 
 Target encoding runs the risk of `data leakage` since you are using the response variable to encode a feature. An alternative is to change the feature value to represent the proportion a particular level represents for a given feature. In this case, North_Ames would be changed to 0.149.
 
@@ -383,13 +373,13 @@ ames_train %>%
 
 For other alternatives to categorical encoding, refer to `embed` package (<https://embed.tidymodels.org/>)
 
-## 3.7 Dimension reduction
+## 3.7 Dimension reduction {.unnumbered}
 
 Dimension reduction is an alternative approach to filter out non-informative features without manually removing them. We discuss dimension reduction topics in depth later in the book (Chapters 17-19) so please refer to those chapters for details.
 
 For example, we may wish to reduce the dimension of our features with principal components analysis (Chapter 17) and retain the number of components required to explain, say, 95% of the variance and use these components as features in downstream modeling.
 
-## 3.8 Proper implementation
+## 3.8 Proper implementation {.unnumbered}
 
 We stated at the beginning of this chapter that we should think of feature engineering as creating a blueprint rather than manually performing each task individually. This helps us in two ways: (1) thinking sequentially and (2) to apply appropriately within the resampling process.
 
@@ -409,13 +399,13 @@ While your project's needs may vary, here is a suggested order of potential step
 
 Also, refer to tidymodels recipes - ordering of steps (<https://recipes.tidymodels.org/articles/Ordering.html>)
 
-## Data leakage
+## Data leakage {.unnumbered}
 
 *Data leakage* is when information from outside the training data set is used to create the model. Data leakage often occurs during the data preprocessing period.
 
 ![Figure 3.10: Performing feature engineering preprocessing within each resample helps to minimize data leakage.](chapter-img/03-chapter/minimize-leakage.png){heigth="800px," width="1000px"}
 
-## Putting the pieces together
+## Putting the pieces together {.unnumbered}
 
 The first step is where you define your blueprint (aka recipe). With this process, you supply the formula of interest (the target variable, features, and the data these are based on) with `recipe()` and then you sequentially add feature engineering steps with `step_xxx()`.
 
@@ -436,8 +426,6 @@ blueprint <- recipe(Sale_Price ~ ., data = ames_train) %>%
 
 blueprint
 ```
-
-##
 
 Next, we need to train this blueprint on some training data. Remember, there are many feature engineering steps that we do not want to train on the test data (e.g., standardize and PCA) as this would create data leakage. So in this step we estimate these parameters based on the training data of interest.
 
@@ -473,8 +461,6 @@ knn_fit2 <- train(
   metric = "RMSE"
 )
 ```
-
-##
 
 ```{r blueprint-knn-assess}
 # print model results
