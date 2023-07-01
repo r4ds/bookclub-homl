@@ -24,7 +24,7 @@ library(rattle)
 # library(caret)
 # library(vip)
 # install.packages("remotes")
-remotes::install_github("grantmcdermott/parttree")
+# remotes::install_github("grantmcdermott/parttree")
 library(parttree)
 ```
 
