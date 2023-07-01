@@ -30,7 +30,7 @@ Imports:
     rmarkdown, 
     rpart, 
     rpart.plot, 
-    rattle
+    rattle, 
     rsample, 
     skimr, 
     themis, 
