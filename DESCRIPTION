@@ -26,6 +26,7 @@ Imports:
     moments,
     parttree,
     pdp,
+    plotly,
     rattle,
     recipes,
     rmarkdown,
