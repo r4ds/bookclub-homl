@@ -4,7 +4,7 @@ It's a great way to the **reduce model variance** $\text{Var}(\hat{f}(x_0))$ and
 
 This method consist in:
 
-- Creating b bootstrap copies of the original training data
+- Creating bootstrap copies of the original training data
 - Fitting multiple ($[50,500]$) versions of a *base learner* (model), as we need fewer resamples if we have *strong predictors*
 - Combining models into an aggregated prediction
   - *Regression:* By averaging the predictions.
