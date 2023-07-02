@@ -2,12 +2,476 @@
 
 **Learning objectives:**
 
-- THESE ARE NICE TO HAVE BUT NOT ABSOLUTELY NECESSARY
+-   Structure
 
-## SLIDE 1 {-}
+-   Partitioning
 
-- ADD SLIDES AS SECTIONS (`##`).
-- TRY TO KEEP THEM RELATIVELY SLIDE-LIKE; THESE ARE NOTES, NOT THE BOOK ITSELF.
+-   How deep?
+
+-   AMES Housing example
+
+-   Feature interpretation
+
+-   Final thoughts
+
+```{r setup_9, echo = FALSE, warning = FALSE, message = FALSE}
+# suppressMessages(library(tidyverse))
+# library(recipes)
+# library(rsample)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+# library(caret)
+# library(vip)
+# install.packages("remotes")
+# remotes::install_github("grantmcdermott/parttree")
+library(parttree)
+```
+
+## 9.1 - Introduction {.unnumbered}
+
+**Tree-based models** are a class of *nonparametric* algorithms that work by partitioning the feature space into a number of smaller (non-overlapping) regions with similar response values using a set of *splitting* rules.
+
+Advantages:
+
+-   Handling of nonlinear relationships.
+
+-   Interpretability: decision trees provide easily understandable rules that can be visualized through tree diagrams.
+
+-   Robust to outliers.
+
+Disadvantages:
+
+-   Overfitting: especially when the tree grows deep and complex.
+
+-   Handling continuous variables: not as effective in handling continuous variables with a wide range of values.
+
+-   Instability: decision trees can be sensitive to small changes in the data, leading to different tree structures or predictions.
+
+-   Lack of Predictive Power: compared to more complex algorithms like neural networks or gradient boosting machines, decision trees may have lower predictive performance.
+
+It's important to note that some of these disadvantages can be mitigated through techniques like pruning, ensemble methods (e.g., random forests), or using gradient boosting algorithms that combine multiple decision trees.
+
+## 9.2 - Structure {.unnumbered}
+
+![Source: [https://medium.com/\@scid2230/decision-tree-basics-34d864483c42](https://medium.com/@scid2230/decision-tree-basics-34d864483c42){.uri}](chapter-img/09_chapter/decision_tree_structure.png)
+
+[StatQuest Decision Trees (Regression) Explained](https://youtu.be/g9c66TUylZ4)
+
+[StatQuest Decision Trees (Classification) Explained](https://youtu.be/_L39rN6gz7Y)
+
+## 9.3 - Partitioning {.unnumbered}
+
+CART ([C]{.underline}lassification [a]{.underline}nd [R]{.underline}egression [T]{.underline}ree) uses binary recursive partitioning (it's recursive because each split or rule depends on the the splits above it).
+
+For regression problems, the objective function to minimize is the total SSE as defined in the equation below:
+
+```{=tex}
+\begin{equation}
+S S E=\sum_{i \in R_1}\left(y_i-c_1\right)^2+\sum_{i \in R_2}\left(y_i-c_2\right)^2
+\end{equation}
+```
+For classification problems, the partitioning is usually made to maximize the reduction in cross-entropy or the Gini index (i.e. measure of purity).
+
+Having found the best feature/split combination, the data are partitioned into two regions and the splitting process is repeated on each of the two regions (hence the name binary recursive partitioning). This process is continued until a suitable stopping criterion is reached (e.g., a maximum depth is reached or the tree becomes "too complex").
+
+## 9.4 - How deep? {.unnumbered}
+
+If we grow an overly complex tree, as shown in Figure 9.6, we tend to overfit to our training data resulting in poor generalization performance.
+
+Consequently, there is a balance to be achieved in the depth and complexity of the tree to optimize predictive performance on future unseen data. To find this balance, we have two primary approaches: (1) early stopping and (2) pruning.
+
+## 9.4.1 - Early stopping {.unnumbered}
+
+-   Early stopping explicitly restricts the growth of the tree.
+
+-   There are several ways we can restrict tree growth but two of the most common approaches are to restrict the tree depth to a certain level or to restrict the minimum number of observations allowed in any terminal node.
+
+-   When limiting tree depth we stop splitting after a certain depth (e.g., only grow a tree that has a depth of 5 levels).
+
+-   When restricting minimum terminal node size (e.g., leaf nodes must contain at least 10 observations for predictions) we are deciding to not split intermediate nodes which contain too few data points.
+
+## 9.4.2 - Prunning {.unnumbered}
+
+-   An alternative to explicitly specifying the depth of a decision tree is to grow a very large, complex tree and then prune it back to find an optimal subtree.
+
+-   Prunning is activate by the *cost complexity parameter* (α) that penalizes our objective function.
+
+```{=tex}
+\begin{equation}
+\operatorname{minimize}\{S S E+\alpha|T|\}
+\end{equation}
+```
+
+## 9.5 - AMES Housing example {.unnumbered}
+
+```{r ames_train_test_split}
+ames <- AmesHousing::make_ames()
+
+# relocate `Sale_Price`
+ames <- ames %>% 
+     relocate(Sale_Price, .before = everything())
+
+# Stratified sampling with the rsample package
+set.seed(123)  # for reproducibility
+split  <- initial_split(ames, prop = 0.7, strata = "Sale_Price")
+ames_train  <- training(split)
+ames_test   <- testing(split)
+```
+
+We can fit a regression tree using `rpart` and then visualize it using `rpart.plot`.
+
+```{r basic-ames-tree}
+ames_dt1 <- rpart(
+  formula = Sale_Price ~ .,
+  data    = ames_train,
+  method  = "anova"
+)
+```
+
+```{r ames_tree_structure}
+ames_dt1
+```
+
+## {.unnumbered}
+
+Visualize the regression decision tree using `rpart.plot`.
+
+```{r ames_tree_plot_1}
+rpart.plot(ames_dt1)
+```
+
+## {.unnumbered}
+
+Using `fancyRpartPlot`
+```{r ames_tree_plot_2}
+fancyRpartPlot(ames_dt1)
+```
+
+## {.unnumbered}
+
+Plot `cost complexity` parameter to validation error
+```{r cost_complexity_tuning}
+plotcp(ames_dt1)
+```
+
+Using the 1-SE (1 standard error) rule, a tree size of 10-12 provides optimal cross validation results.
+
+Let's update our decision tree inputing these parameters
+```{r tree_parameter_update}
+ames_dt2 <- rpart(
+    formula = Sale_Price ~ .,
+    data    = ames_train,
+    method  = "anova", 
+    control = list(cp = 0, xval = 10)
+)
+
+plotcp(ames_dt2)
+abline(v = 11, lty = "dashed")
+```
+
+`cp` table
+```{r cp_table}
+ames_dt1$cptable
+```
+
+So, by default, rpart() is performing some automated tuning, with an optimal subtree of 10 total splits, 11 terminal nodes, and a cross-validated SSE of 0.2778. 
+
+```{r cross_validation_results}
+# caret cross validation results
+ames_dt3 <- train(
+  Sale_Price ~ .,
+  data = ames_train,
+  method = "rpart",
+  trControl = trainControl(method = "cv", number = 10),
+  tuneLength = 20
+)
+
+g1 <- ggplot(ames_dt3)
+plotly::ggplotly(g1)
+```
+
+Cross-validated accuracy rate for the 20 different α parameter values in our grid search. Lower α values (deeper trees) help to minimize errors.
+
+Best `cp` value
+```{r cp_value}
+ames_dt3$bestTune
+```
+
+## 9.6 - Feature Interpretation {.unnumbered}
+
+The figure below illustrates the top 40 features in the Ames housing decision tree.
+```{r variable_importance_plot}
+vip(ames_dt3, num_features = 40, geom = 'point')
+```
+
+Partial dependency plots
+```{r partial_dependency_plots}
+# Construct partial dependence plots
+p1 <- partial(ames_dt3, pred.var = "Gr_Liv_Area") %>% autoplot()
+p2 <- partial(ames_dt3, pred.var = "Year_Built") %>% autoplot()
+p3 <- partial(ames_dt3, pred.var = c("Gr_Liv_Area", "Year_Built")) %>% 
+  plotPartial(levelplot = FALSE, zlab = "yhat", drape = TRUE, 
+              colorkey = TRUE, screen = list(z = -20, x = -60))
+
+# Display plots side by side
+gridExtra::grid.arrange(p1, p2, p3, ncol = 3)
+```
+
+## {.unnumbered}
+
+Another visualization into the decision tree space predictions.
+```{r parttree_plot}
+p <- ames_train %>% 
+     ggplot(aes(x = Gr_Liv_Area, y = Total_Bsmt_SF)) + 
+     geom_point(aes(col = Sale_Price))
+
+## Fit a decision tree using the same variables as the above plot
+ames_dt4 <- rpart(Sale_Price ~ Gr_Liv_Area + Total_Bsmt_SF, data = ames_train)
+
+p + 
+     geom_parttree(
+          data = ames_dt4, 
+          aes(fill = Sale_Price), 
+          alpha = 0.1
+     ) + 
+     scale_color_viridis_c(aesthetics = c('colour', 'fill'))
+```
+
+## 9.7 - Final thoughts {.unnumbered}
+
+Decision trees have a number of advantages:
+
+-  They require very little pre-processing.
+
+-  Can easily handle categorical features without preprocessing.
+
+-  Missing values can be handled by decision trees by creating a new “missing” class for categorical variables or using surrogate splits (see Therneau, Atkinson, and others (1997) for details).
+
+However, individual decision trees generally do not often achieve state-of-the-art predictive accuracy.
+
+Furthermore, we saw that deep trees tend to have high variance (and low bias) and shallow trees tend to be overly bias (but low variance).
+
+## BONUS: Attrition (decision tree classifier)
+
+Let's apply a decision tree as classifier to the `attrition` dataset
+```{r setup_9_tidymodels}
+suppressMessages(library(tidymodels))
+suppressMessages(library(tidyverse))
+library(themis)
+```
+
+Load dataset
+```{r attrition_dataset}
+# load dataset
+attrition <- modeldata::attrition
+
+# clean names with `janitor` package
+# coerce ordered factor variables to numeric
+attrition <- attrition %>% 
+     janitor::clean_names() %>% 
+     # mutate_if(is.ordered, as.numeric) %>% 
+     relocate(attrition, .before = everything())
+```
+
+First look at dataset
+```{r glimpse_dataset}
+attrition %>% 
+  glimpse()
+```
+
+Take a deeper look at each variable with `skimr`
+```{r skim_attrition}
+skimr::skim(attrition) %>% 
+  kable()
+```
+
+Count `attrition` (target)
+```{r count_attrition}
+attrition %>%
+     count(attrition)
+```
+
+Our target (`attrition`) is highly imbalanced.
+
+## {.unnumbered}
+
+Using the `tidymodels` framework to create a decision tree classifier model for the `attrition` dataset.
+
+1. Train/test split `attrition`
+```{r train_test_split_attrition}
+# Create training (75%) and test (25%) sets for the
+# rsample::attrition data. Use set.seed for reproducibility
+set.seed(123)
+churn_split <- initial_split(attrition, prop = 0.75, strata = "attrition")
+train <- training(churn_split)
+test  <- testing(churn_split)
+
+# k-folds
+folds <- vfold_cv(data = train, v = 3, strata = 'attrition')
+folds
+```
+
+2. Create a recipe to preprocess the train and test datasets
+```{r recipe_attrition}
+recipe_obj <- recipe(attrition ~ ., data = train) %>% 
+  
+  # remove all predictors with constant (zero) variance
+  step_zv(all_predictors()) %>% 
+  
+  # upsample the target to balance the class
+  step_upsample(attrition)
+
+# verify recipe with train dataset
+recipe_obj %>% 
+  prep() %>% 
+  bake(new_data = NULL) %>% 
+  glimpse()
+
+# verify recipe with test dataset
+recipe_obj %>%
+  prep() %>%
+  bake(new_data = test) %>% 
+  glimpse()
+```
+
+3. Create a model specification
+```{r tree_spec}
+# decision tree spec (tuning hyperparameters)
+tree_spec <- decision_tree(
+     cost_complexity = tune(),
+     tree_depth = tune(),
+     min_n = tune()
+) %>%
+     set_engine("rpart") %>%
+     set_mode("classification")
+
+tree_spec
+```
+
+4. Create a workflow object to combine the model spec and recipe objects
+```{r}
+# workflow spec
+wflw_tree <- workflow() %>%
+     add_model(tree_spec) %>%
+     add_recipe(recipe_obj)
+```
+
+5. Create a hyperparameter tuning grid
+```{r hyperparameter_tuning_grid_setup}
+# tuning grid
+tree_grid <- grid_regular(
+     cost_complexity(),
+     tree_depth(range = c(5, 9)),
+     min_n(range = c(11, 15)),
+     levels = 5)
+
+tree_grid
+```
+
+## {.unnumbered}
+
+6. Setup parallel processing to speed up the tuning execution time
+```{r parallel_setup}
+library(doParallel)
+all_cores <- parallel::detectCores(logical = FALSE)
+registerDoParallel(cores = all_cores - 1)
+```
+
+7. Execute the hyperparameter tuning
+```{r hyperparameter_tuning}
+set.seed(345)
+tree_rs <- tune_grid(
+     wflw_tree,
+     resamples = folds,
+     grid = tree_grid,
+     control = control_grid(
+          save_pred = TRUE
+     )
+)
+
+tree_rs
+```
+
+8. Evaluate the model
+```{r model_evaluation}
+# plot evaluation metrics
+tree_rs %>%
+     autoplot()
+
+# sort `roc_auc` metric (descending)
+tree_rs %>%
+     collect_metrics() %>%
+     filter(.metric == "roc_auc") %>%
+     arrange(-mean)
+```
+
+Show best model
+```{r show_best_model}
+tree_rs %>%
+     show_best(metric = 'roc_auc')
+```
+
+9. Choose the best model hyperparameters and create the last workflow and last fit(fit with the full train dataset and evaluate with the test dataset)
+```{r last_fit}
+# select best model by 'roc_auc'
+best_tree_roc_auc <- select_best(tree_rs, "roc_auc")
+best_tree_roc_auc
+
+# create final workflow
+final_tree <- finalize_workflow(
+     wflw_tree,
+     best_tree_roc_auc
+)
+
+# last fit
+final_fit_tree <- last_fit(
+     final_tree,
+     churn_split
+)
+
+final_fit_tree %>%
+     collect_metrics()
+```
+
+10. Feature importance
+```{r feature_importance_tree}
+# first 20 most important features
+final_fit_tree %>%
+     extract_fit_parsnip() %>%
+     vip(num_features = 20, geom = 'point')
+```
+
+11. Generate predictions
+```{r generate_predictions_tree}
+# predictions and confusion matrix
+final_fit_tree %>%
+     collect_predictions() %>%
+     conf_mat(attrition, .pred_class) %>%
+     pluck(1) %>%
+     as_tibble() %>%
+     ggplot(aes(Prediction, Truth, alpha = n)) +
+     geom_tile(show.legend = FALSE) +
+     geom_text(aes(label = n), colour = "white", alpha = 1, size = 8)
+
+# F1 metrics (final model)
+final_fit_tree %>%
+     collect_predictions() %>%
+     f_meas(attrition, .pred_class) %>%
+     select(-.estimator)
+
+# ROC curve
+final_fit_tree %>%
+     collect_predictions() %>%
+     roc_curve(attrition, .pred_No) %>%
+     autoplot()
+
+# plot `rpart` final tree
+tree_fit_rpart <- final_fit_tree %>%
+     extract_fit_engine(final_tree)
+
+rpart.plot(tree_fit_rpart)
+```
 
 ## Meeting Videos {-}
 

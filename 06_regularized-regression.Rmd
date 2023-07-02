@@ -26,7 +26,7 @@ library(vip)
 # theme_set(theme_light())
 ```
 
-## Introduction
+## Introduction {.unnumbered}
 
 -   Linear models (LMs) provide a simple, yet effective, approach to predictive modeling.
 
@@ -36,7 +36,7 @@ library(vip)
 
 -   **Regularization** methods provide a means to constrain or *regularize* the estimated coefficients, which can reduce the variance and decrease out of sample error.
 
-## 6.1 - Why regularize?
+## 6.1 - Why regularize? {.unnumbered}
 
 ```{r AmesHousing}
 ames <- AmesHousing::make_ames()
@@ -76,8 +76,6 @@ The objective function being minimized can be written as:
 \end{equation}
 ```
 
-## 
-
 -   For more complex datasets, OLS assumptions can be violated, such as the number of predictors ($p$) greater than the number of observations ($n$). Also, the presence of multicollinearity increases with the addition of predictors.
 
 -   A solution to the above scenario is the use of *penalized models* or *shrinkage* methods to constrain the total size of all the coefficient estimates.
@@ -99,7 +97,7 @@ There are three common penalty parameters we can implement:
 
 -   ElasticNet, which is a combination of ridge and lasso
 
-## 6.2.1 - Ridge penalty
+## 6.2.1 - Ridge penalty {.unnumbered}
 
 Ridge (L2) regression controls the estimated coefficients by adding a penalty to the objective function:
 
@@ -116,7 +114,7 @@ Ridge (L2) regression controls the estimated coefficients by adding a penalty to
 
 -   Ridge regression does **not** perform feature selection and will retain **all** available features.
 
-## 6.2.2 - Lasso penalty
+## 6.2.2 - Lasso penalty {.unnumbered}
 
 The lasso (least absolute shrinkage and selection operator) penalty is an alternative to the ridge penalty that requires only a small modification. The objective function is:
 
@@ -131,13 +129,13 @@ Whereas the ridge penalty pushes variables to approximately but not equal to zer
 
 In the figure above we see that when λ\<0.01 all 15 variables are included in the model, when λ≈0.5 9 variables are retained, and when log(λ)=1 only 5 variables are retained.
 
-## 6.2.2 - Elastic nets
+## 6.2.3 - Elastic nets {.unnumbered}
 
 A generalization of the ridge and lasso penalties, called the elastic net, combines the two penalties.
 
 The advantage of the elastic net penalty is that it enables effective regularization via the ridge penalty with the feature selection characteristics of the lasso penalty.
 
-## 6.3 - Implementation
+## 6.3 - Implementation {.unnumbered}
 
 We'll us the `glmnet` package for the regularized regression models.
 
@@ -177,7 +175,7 @@ coef(ridge)[c("Latitude", "Overall_QualVery_Excellent"), 1]
 
 At this point, we do not understand how much improvement we are experiencing in our loss function across various λ values.
 
-## 6.4 - Tuning
+## 6.4 - Tuning {.unnumbered}
 
 Recall that λ is a tuning parameter that helps to control our model from over-fitting to the training data.
 
@@ -207,8 +205,6 @@ plot(lasso, main = "Lasso penalty\n\n")
 Ridge regression does not force any variables to exactly zero so all features will remain in the model but we see the number of variables retained in the lasso model decrease as the penalty increases.
 
 The first and second vertical dashed lines represent the λ value with the minimum MSE and the largest λ value within one standard error of it. The minimum MSE for our ridge model is 0.02194817 (produced when λ= 0.1389619), whereas the minimum MSE for our lasso model is 0.0220374 (produced when λ= 0.00328574).
-
-## 
 
 ```{r ridge-lasso-cv-results}
 # Ridge model
@@ -300,8 +296,6 @@ ggplot(cv_glmnet) +
 
 The above snippet of code shows that the model that minimized RMSE used an alpha of 0.1 and λ of 0.02. The minimum RMSE of 0.1277585 (MSE=0.1277585\^2 = 0.01632223) slightly improves upon the full ridge and lasso models produced earlier.
 
-## 
-
 So how does this compare to our previous best model for the Ames data set? Keep in mind that for this chapter we log transformed the response variable (`Sale_Price`).
 
 ```{r re-transform}
@@ -314,7 +308,7 @@ RMSE(exp(pred), exp(Y))
 
 Compared with the PLS model's RMSE of \$25,460. the optimized regularization regression model performs better.
 
-## 6.5 - Feature interpretation
+## 6.5 - Feature interpretation {.unnumbered}
 
 Variable importance for regularized models provides a similar interpretation as in linear (or logistic) regression. Importance is determined by magnitude of the standardized coefficients.
 
@@ -376,7 +370,7 @@ pdp::partial(cv_glmnet, pred.var = "Overall_QualPoor") %>%
      theme_minimal()
 ```
 
-## 6.6 - Attrition data
+## 6.6 - Attrition data {.unnumbered}
 
 We saw that regularization significantly improved our predictive accuracy for the Ames data set, but how about for the employee attrition example from Chapter 5?
 
@@ -500,7 +494,7 @@ rownames(kappa_long_df) <- 1:nrow(kappa_long_df)
 t.test(kappa_long_df$logistic_model, kappa_long_df$penalized_model)
 ```
 
-## 6.7 - Final thoughts
+## 6.7 - Final thoughts {.unnumbered}
 
 Regularized regression provides many great benefits over traditional GLMs when applied to large data sets with lots of features.
 
