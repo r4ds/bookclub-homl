@@ -1,13 +1,305 @@
 # Interpretable Machine Learning
 
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(
+  eval = FALSE
+)
+```
+
 **Learning objectives:**
 
-- THESE ARE NICE TO HAVE BUT NOT ABSOLUTELY NECESSARY
+## Introduction
 
-## SLIDE 1 {-}
+Model's **interpretability** is crucial for:
 
-- ADD SLIDES AS SECTIONS (`##`).
-- TRY TO KEEP THEM RELATIVELY SLIDE-LIKE; THESE ARE NOTES, NOT THE BOOK ITSELF.
+- Business adoption
+- Model documentation
+- Regulatory oversight
+- Human acceptance and trust
+
+**Interpretable Machine Learning** provides solutions to explain at different levels.
+
+- **Global Interpretation** explain  how the model makes predictions, based on a holistic view of its **features**. They can explain:
+  - which features are the most influential (via **feature importance**)
+  - How the most influential variables drive the model output (via **feature effects**)
+
+- **Local Interpretation** becomes very important when the effect of most influential model's features doesn't the biggest influence for a particular observation as it helps us to understand what **features are influencing the predicted response** for a given observation or an small group of observations.
+  - Local interpretable model-agnostic explanations (LIME)
+  - Shapley values
+  - Localized step-wise procedures
+
+## Setting enviroment
+
+### Loading libraries
+
+```{r libraries, message=FALSE, echo=TRUE, results='hide'}
+# Helper packages
+library(dplyr)      # for data wrangling
+library(ggplot2)    # for awesome graphics
+
+# Modeling packages
+library(h2o)       # for interfacing with H2O
+library(recipes)   # for ML recipes
+library(rsample)   # for data splitting
+library(xgboost)   # for fitting GBMs
+
+# Model interpretability packages
+library(pdp)       # for partial dependence plots (and ICE curves)
+library(vip)       # for variable importance plots
+library(iml)       # for general IML-related functions
+library(DALEX)     # for general IML-related functions
+library(lime)      # for local interpretable model-agnostic explanations
+```
+
+### Getting the data
+
+```{r getting-data, message=FALSE, echo=TRUE, results='hide'}
+# Load and split the Ames housing data
+ames <- AmesHousing::make_ames()
+
+# for reproducibility
+set.seed(123)  
+split <- initial_split(ames, strata = "Sale_Price")
+ames_train <- training(split)
+ames_test <- testing(split)
+
+# Make sure we have consistent categorical levels
+blueprint <- recipe(Sale_Price ~ .,
+                    data = ames_train) %>%
+  step_other(all_nominal(),
+             threshold = 0.005)
+
+# Starting H2O
+h2o.init(max_mem_size = "5g")
+options(timeout = 1000)
+
+# Create training set for h2o
+train_h2o <- prep(blueprint,
+                  training = ames_train,
+                  retain = TRUE) %>%
+  juice() %>%
+  as.h2o()
+
+# Create testing set for h2o
+test_h2o <- prep(blueprint,
+                 training = ames_train) %>%
+  bake(new_data = ames_test) %>%
+  as.h2o()
+
+h2o.shutdown(prompt = FALSE)
+
+# Get response and feature names
+Y <- "Sale_Price"
+X <- setdiff(names(ames_train), Y)
+```
+
+### Training the model
+
+```{r train-base-learners}
+# Regularized regression base learner
+best_glm <- h2o.glm(
+  x = X,
+  y = Y,
+  training_frame = train_h2o,
+  alpha = 0.1,
+  remove_collinear_columns = TRUE,
+  nfolds = 10,
+  fold_assignment = "Modulo",
+  keep_cross_validation_predictions = TRUE,
+  seed = 123
+)
+
+# Random forest base learner
+best_rf <- h2o.randomForest(
+  x = X,
+  y = Y,
+  training_frame = train_h2o,
+  ntrees = 1000,
+  mtries = 20,
+  max_depth = 30,
+  min_rows = 1,
+  sample_rate = 0.8,
+  nfolds = 10,
+  fold_assignment = "Modulo",
+  keep_cross_validation_predictions = TRUE,
+  seed = 123,
+  stopping_rounds = 50,
+  stopping_metric = "RMSE",
+  stopping_tolerance = 0
+)
+
+
+# GBM base learner
+best_gbm <- h2o.gbm(
+  x = X,
+  y = Y,
+  training_frame = train_h2o,
+  ntrees = 5000,
+  learn_rate = 0.01,
+  max_depth = 7,
+  min_rows = 5,
+  sample_rate = 0.8,
+  nfolds = 10,
+  fold_assignment = "Modulo",
+  keep_cross_validation_predictions = TRUE,
+  seed = 123,
+  stopping_rounds = 50,
+  stopping_metric = "RMSE",
+  stopping_tolerance = 0
+)
+
+# XGBoost base learner
+#   We cannot run this under Windows
+
+# Stacked model
+ensemble_tree <- h2o.stackedEnsemble(
+  x = X,
+  y = Y,
+  training_frame = train_h2o,
+  model_id = "my_tree_ensemble",
+  base_models = list(best_glm, best_rf, best_gbm),
+  # Meta learner: random forest
+  metalearner_algorithm = "drf"
+)
+```
+
+### Defining Local Observations to Explain
+
+```{r local_values}
+# Compute predictions
+predictions <- predict(ensemble_tree,
+                       train_h2o) |> 
+  as.vector()
+
+max(predictions) |>
+  scales::dollar() |>
+  paste("Observation",
+        which.max(predictions), 
+        "has a predicted sale price of",
+        a = _)
+
+min(predictions) |>
+  scales::dollar() |>
+  paste("Observation",
+        which.min(predictions), 
+        "has a predicted sale price of",
+        a = _) 
+
+
+# Grab feature values for observations with min/max predicted sales price
+high_ob <- as.data.frame(train_h2o)[which.max(predictions), ] |> 
+  select(-Sale_Price)
+
+low_ob  <- as.data.frame(train_h2o)[which.min(predictions), ] |>
+  select(-Sale_Price)
+```
+
+### Defining objects for iml and DALEX
+
+To use these methods with the **iml** or **DALEX** packeges, we need to create 3 objects:
+
+```{r}
+# 1) create a data frame with just the features
+features <- as.data.frame(train_h2o) %>% select(-Sale_Price)
+
+# 2) Create a vector with the actual responses
+response <- as.data.frame(train_h2o) %>% pull(Sale_Price)
+
+# 3) Create custom predict function that returns the predicted values as a vector
+pred <- function(object, newdata)  {
+  results <- as.vector(h2o.predict(object, as.h2o(newdata)))
+  return(results)
+}
+
+# Example of prediction output
+head(features) |> pred(object = ensemble_tree)
+```
+
+**iml**
+
+```{r}
+components_iml <- Predictor$new(
+  model = ensemble_tree, 
+  data = features, 
+  y = response, 
+  predict.fun = pred
+)
+```
+
+**DALEX**
+
+```{r}
+components_dalex <- DALEX::explain(
+  model = ensemble_tree,
+  data = features,
+  y = response,
+  predict_function = pred
+)
+```
+
+
+## Interpretation trade-off
+
+In prior chapters we have been using *model-specific* as they are closer **tied to the model performance**, but you would be facing the next limitations:
+
+- Not all *models have a method*. For example, the *stacked model* we trained during last chapter.
+- Comparing feature importance across model classes is difficult *since you are comparing different measurements*.
+
+**There isn't a Best Approach**
+
+> The only way to **full trust** our model interpretations is to apply multiple approaches *including model specific and model agnostic results*.
+
+
+## Permutation-based feature importance
+
+### Concept
+
+We can use this method for any model after assuring that:
+
+- **The model isn't overfitting**: To avoid interpreting *noise* rather than *signal*.
+- **Features present low correlation**: To avoid under estimating the importance of correlated features, as permuting a feature without permuting its correlated pairs won't have a big effect.
+
+It measures feature’s importance by calculating the **increase of the model’s prediction error**, by taking the *difference to interpret absolute values* or the *ratio to interpret relative values* of a metric like the *RMSE* after **permuting the feature**, as describes the next *algorithm*:
+
+```
+For any given loss function do the following:
+1. Compute loss function for original model
+2. For variable i in {1,...,p} do
+     | randomize values
+     | apply given ML model
+     | estimate loss function
+     | compute feature importance (some difference/ratio measure 
+       between permuted loss & original loss)
+   End
+3. Sort variables by descending feature importance
+```
+
+![Source: https://www.aporia.com/learn/feature-importance/explain-ml-models-with-permutation-importance/](chapter-img/16_chapter/01-permutation.webp)
+
+### Implementation
+
+|**
+
+
+## Model-specific implementation
+
+By reviewing the documentation of the `vip::vi_model` functions we can see some descriptions some methods work, some of the use **permutation** (*sampling without replacement*) to validate importance.
+
+|Source package |Method Description|
+|:--------|:-----------------------------|
+|**lm**| It uses the absolute value of the  **$t$–statistic** as a measure of feature importance|
+|**glmnet**| It uses the absolute value of the **coefficients** are returned for a specific model, so it's important to standardized the features prior fitting the model. We can specify which coefficients to return by passing the specific value of the penalty parameter via the `lambda`|
+|**earth**|1. `type = "nsubsets"` counts the number of **model subsets that include each feature**. Variables that are included in more subsets are considered more important. <br> <br> 2. `type = "rss"` **calculates the decrease in the RSS for each subset** relative to the previous subset during earth()’s backward pass. Then it **sums these decreases** over all subsets that include **each variable** and **scale the result** to report 100 for the variable associated with the **larger net decrease**. <br> <br> 3. `type = "gcv"` which is a shortcut for *leave-one-out cross validation* and follow the same strategy as the *rss* with the difference that a variable might have a negative total importance as this measure no always decrease.|
+|**rpart**|It records the **sum of the goodness of split** for each split and variable  plus "goodness"* for all **splits in which it was a surrogate**.|
+|**randomForest**|1. `type = 1` (*mean decrease in accuracy*) **records** the prediction out-of-bag **error rate or MSE** for each tree, then repeats the process after **permuting each predictor** variable, calculate the *difference between both errors*, takes the average over all trees and normalized the results using the standard deviation of the differences. <br> <br> 2. `type = 2` (*mean decrease in node impurity*) is the total decrease in node impurities (**Gini index** or **residual sum of squares**) from splitting on the variable, averaged over all trees.|
+|**gbm**|1. If `type = "relative.influence"` and `distribution = "gaussian"` this returns the reduction of squared error attributable to each variable. <br> <br> 2. If  `distribution != "gaussian"` returns the reduction attributable to each variable in **sum of squared error** in predicting the gradient on **each iteration** to report the relative influence of each variable in **reducing the loss function**. <br> <br> 3. If `type = "permutation"` it **randomly permutes each predictor variable** at a time and computes the associated reduction in **predictive performance** using using the **entire training dataset**.|
+|**xgboost**|1. For linear models, the importance is the absolute magnitude of linear coefficients. <br> <br> 2. For tree models and `type = "gain"` it gives the **fractional contribution of each feature** to the model based on the total gain (*sum of the improvements in accuracy brought by that feature to all the branches it is on.*) of the corresponding feature's splits. <br> <br> 3. For tree models and `type = "cover"` it gives the number of observations related to each feature. <br> <br> 4. For tree models and `type = "frequency"` it gives the percentages representing the relative number of times each feature has been used throughout each tree in the ensemble.
+
+## Model-agnostic implementation
+
+
+
+
 
 ## Meeting Videos {-}
 
