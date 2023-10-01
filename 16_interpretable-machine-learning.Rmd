@@ -1,6 +1,6 @@
 # Interpretable Machine Learning
 
-```{r, setup, include=FALSE}
+```{r, 16-setup, include=FALSE}
 knitr::opts_chunk$set(
   eval = FALSE
 )
@@ -61,7 +61,7 @@ library(lime)      # for local interpretable model-agnostic explanations
 
 ### Getting the data
 
-```{r getting-data, message=FALSE, echo=TRUE, results='hide'}
+```{r 16-getting-data, message=FALSE, echo=TRUE, results='hide'}
 # Load and split the Ames housing data
 ames <- AmesHousing::make_ames()
 
@@ -101,7 +101,7 @@ X <- setdiff(names(ames_train), Y)
 
 ### Training the model
 
-```{r train-base-learners}
+```{r 16-train-base-learners}
 # Regularized regression base learner
 best_glm <- h2o.glm(
   x = X,
@@ -171,7 +171,7 @@ ensemble_tree <- h2o.stackedEnsemble(
 
 ### Defining Local Observations to Explain
 
-```{r local_values}
+```{r 16-local_values}
 # Compute predictions
 predictions <- predict(ensemble_tree,
                        train_h2o) |> 
@@ -265,7 +265,7 @@ For any given loss function do the following:
 
 **Creating Needed Objects**
 
-```{r support-objects}
+```{r 16-support-objects}
 # For iml and DALEX
 # 1) Split the features and response
 features <- as.data.frame(train_h2o) |> select(-Sale_Price)
@@ -288,7 +288,7 @@ components_dalex <- DALEX::explain(
 
 **iml**
 
-```{r iml-permutation}
+```{r 16-iml-permutation}
 Predictor$new(ensemble_tree, data = features, y = response) |>
   FeatureImp$new(loss = "rmse", compare = "difference") |>
   plot()
@@ -297,7 +297,7 @@ Predictor$new(ensemble_tree, data = features, y = response) |>
 
 **DALEX**
 
-```{r DALEX-permutation}
+```{r 16-DALEX-permutation}
 loss_default(components_dalex$model_info$type)
 
 model_parts(components_dalex,
@@ -308,7 +308,7 @@ model_parts(components_dalex,
 
 **vip**
 
-```{r vip-permutation}
+```{r 16-vip-permutation}
 vip(
   ensemble_tree,
   train = as.data.frame(train_h2o),
@@ -332,7 +332,7 @@ It allows us to understand **how the response variable changes** as we **change 
 
 1. Splitting the feature of interest into  $j$ equally spaced values. For example, if $j = 20$ for the `Gr_Liv_Area` we could write the next code.
 
-```{r j_values, eval=TRUE}
+```{r 16-j_values, eval=TRUE}
 j_values <-
   seq(from = 334,
       to = 5095,
@@ -359,7 +359,7 @@ matrix(j_values, nrow = 5, byrow = TRUE)
 
 **DALEX**
 
-```{r DALEX-pdp}
+```{r 16-DALEX-pdp}
 dalex_pdp <- model_profile(explainer = components_dalex,
                            variables = "Gr_Liv_Area",
                            N = 20L)
@@ -371,7 +371,7 @@ plot(dalex_pdp)
 
 **pdp**
 
-```{r pdp-pdp}
+```{r 16-pdp-pdp}
 # Custom prediction function wrapper
 pdp_pred <- function(object, newdata)  {
   results <- mean(as.vector(h2o.predict(object, as.h2o(newdata))))
@@ -407,7 +407,7 @@ autoplot(pd_values,
 
 We can assume that those features with **larger marginal effects** on the response have greater importance, this is really useful to create plots of both feature importance and feature effects.
 
-```{r vip-pdp}
+```{r 16-vip-pdp}
 pd_imp_values <- vip(
   ensemble_tree,
   train = as.data.frame(train_h2o),
