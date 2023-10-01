@@ -40,7 +40,7 @@ Model's **interpretability** is crucial for:
 
 ### Loading libraries
 
-```{r libraries, message=FALSE, echo=TRUE, results='hide'}
+```{r 16-libraries, message=FALSE, echo=TRUE, results='hide'}
 # Helper packages
 library(dplyr)      # for data wrangling
 library(ggplot2)    # for awesome graphics
