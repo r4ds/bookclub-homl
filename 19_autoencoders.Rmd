@@ -39,7 +39,7 @@ We can see the difference on the MNIST data:
 
 ![](chapter-img/19_chapter/02-variational-autoencoders.webp)
 
-- **Anomaly detection** by using the **reconstruction error** as an anomaly score to detect anomalies.
+- **Anomaly detection** by using the **reconstruction error** (like MSE) as an anomaly score to detect anomalies.
 
 - **Noise reduction** by  **applying random noise** to the input and asking the mode to recall the original (uncorrupted) input which forces the model focus its attention on the bigger picture.
   
@@ -112,20 +112,106 @@ ae1_codings
 ## [60000 rows x 2 columns]
 ```
 
-## Adding additional depth
+## Tunning hidden layers
+
+- Autoencoders are often trained with only a **single hidden layer**.
+
+- Adding additional depth can allow the codings to represent **more complex, nonlinear relationships** at a reduced computational cost.
+
 
 ![](chapter-img/19_chapter/05-autoencoder-symmetry.png)
 
+```r
+# Hyperparameter search grid
+hyper_grid <- list(hidden = list(
+  c(50),
+  c(100), 
+  c(300, 100, 300),
+  c(100, 50, 100),
+  c(250, 100, 50, 100, 250)
+))
 
 
-## References
+# Execute grid search
+ae_grid <- h2o.grid(
+  algorithm = 'deeplearning',
+  x = seq_along(features),
+  training_frame = features,
+  grid_id = 'autoencoder_grid',
+  autoencoder = TRUE,
+  activation = 'Tanh',
+  hyper_params = hyper_grid,
+  sparse = TRUE,
+  ignore_const_cols = FALSE,
+  seed = 123
+)
+
+# Print grid details
+h2o.getGrid('autoencoder_grid', sort_by = 'mse', decreasing = FALSE)
+## H2O Grid Details
+## ================
+## 
+## Grid ID: autoencoder_grid 
+## Used hyper parameters: 
+##   -  hidden 
+## Number of models: 5 
+## Number of failed models: 0 
+## 
+## Hyper-Parameter Search Summary: ordered by increasing mse
+##                     hidden                 model_ids                  mse
+## 1                    [100] autoencoder_grid3_model_2  0.00674637890553651
+## 2          [300, 100, 300] autoencoder_grid3_model_3  0.00830502966843272
+## 3           [100, 50, 100] autoencoder_grid3_model_4 0.011215307972822733
+## 4                     [50] autoencoder_grid3_model_1 0.012450109189122541
+## 5 [250, 100, 50, 100, 250] autoencoder_grid3_model_5 0.014410280145600972
+```
+
+## Getting the reconstruction
+
+```r
+# Get sampled test images
+index <- sample(1:nrow(mnist$test$images), 4)
+sampled_digits <- mnist$test$images[index, ]
+colnames(sampled_digits) <- paste0("V", seq_len(ncol(sampled_digits)))
 
 
-Lenny #2: Autoencoders and Word Embeddings: https://ayearofai.com/lenny-2-autoencoders-and-word-embeddings-oh-my-576403b0113a
+# Predict reconstructed pixel values
+best_model_id <- ae_grid@model_ids[[1]]
+best_model <- h2o.getModel(best_model_id)
+reconstructed_digits <- predict(best_model, as.h2o(sampled_digits))
+names(reconstructed_digits) <- paste0("V", seq_len(ncol(reconstructed_digits)))
 
-Autoencoder: https://en.wikipedia.org/wiki/Autoencoder#Variational_autoencoder_(VAE)
 
-Understanding Variational Autoencoders (VAEs): https://towardsdatascience.com/understanding-variational-autoencoders-vaes-f70510919f73
+combine <- rbind(sampled_digits, as.matrix(reconstructed_digits))
+
+
+# Predict reconstructed pixel values
+best_model_id <- ae_grid@model_ids[[1]]
+best_model <- h2o.getModel(best_model_id)
+reconstructed_digits <- predict(best_model, as.h2o(sampled_digits))
+names(reconstructed_digits) <- paste0("V", seq_len(ncol(reconstructed_digits)))
+
+combine <- rbind(sampled_digits, as.matrix(reconstructed_digits))
+
+# Plot original versus reconstructed
+par(mfrow = c(1, 3), mar=c(1, 1, 1, 1))
+layout(matrix(seq_len(nrow(combine)), 4, 2, byrow = FALSE))
+for(i in seq_len(nrow(combine))) {
+  image(matrix(combine[i, ], 28, 28)[, 28:1], xaxt="n", yaxt="n")
+}
+```
+
+![](chapter-img/19_chapter/06-reconstructed-images-plot-1.png)
+
+## Getting the reconstruction
+
+## Additinal references
+
+- Lenny #2: Autoencoders and Word Embeddings: https://ayearofai.com/lenny-2-autoencoders-and-word-embeddings-oh-my-576403b0113a
+
+- Autoencoder: https://en.wikipedia.org/wiki/Autoencoder#Variational_autoencoder_(VAE)
+
+- Understanding Variational Autoencoders (VAEs): https://towardsdatascience.com/understanding-variational-autoencoders-vaes-f70510919f73
 
 
 ## Meeting Videos {-}
