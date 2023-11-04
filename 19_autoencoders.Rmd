@@ -1,13 +1,132 @@
 # Autoencoders
 
-**Learning objectives:**
 
-- THESE ARE NICE TO HAVE BUT NOT ABSOLUTELY NECESSARY
+## Learning objectives {-}
 
-## SLIDE 1 {-}
 
-- ADD SLIDES AS SECTIONS (`##`).
-- TRY TO KEEP THEM RELATIVELY SLIDE-LIKE; THESE ARE NOTES, NOT THE BOOK ITSELF.
+## Main Concept 
+
+- *Neural network* 
+- Trained to reproduce the *most frequently observed characteristics*
+- Returns *efficient representations* of the input data
+- Its output layer has the *same number neurons* as number of inputs it receives.
+
+It can be divided in 2 parts:
+
+- *Encoder function* $(Z = f(X))$: Converts $X$ inputs to $Z$ codings.
+- *Decoder function* $(X' = g(Z))$: Produces a reconstruction of the inputs $(X')$.
+
+**Undercomplete autoencoders** have under their hidden layer fewer neurons than the inputs they receive.
+
+![](chapter-img/19_chapter/01-autoencoder-structure.webp)
+
+> When nonlinear activation functions are used, autoencoders provide nonlinear generalizations of PCA.
+
+![](chapter-img/19_chapter/03-autoencoders-pca.webp)
+
+We can see the difference on the MNIST data:
+
+![](chapter-img/19_chapter/04-pca-autoencoder-projection-1.png)
+
+
+## Applications
+
+### General
+
+- **Dimension reduction** by using the **encoder**.
+
+- **Generative modeling** $P(X|Y=y)$ by using the **decoder**.
+
+![](chapter-img/19_chapter/02-variational-autoencoders.webp)
+
+- **Anomaly detection** by using the **reconstruction error** as an anomaly score to detect anomalies.
+
+- **Noise reduction** by  **applying random noise** to the input and asking the mode to recall the original (uncorrupted) input which forces the model focus its attention on the bigger picture.
+  
+  
+### Information retrieval related
+
+> Information retrieval the science of searching for information.
+
+- Compress the text of web pages into a more compact vector representation
+- Generate meta tags, snippets, and descriptions for web pages using the page content
+- Identify keywords and important concepts within the content of web pages
+- Remove noise from the textual data of web pages
+
+
+### Prerequisites
+
+**Packages**
+
+```r
+# Helper packages
+library(dplyr)    # for data manipulation
+library(ggplot2)  # for data visualization
+
+# Modeling packages
+library(h2o)  # for fitting autoencoders
+h2o.no_progress()  # turn off progress bars
+h2o.init(max_mem_size = "5g")  # initialize H2O instance
+```
+
+**Data**
+
+```r
+mnist <- dslabs::read_mnist()
+names(mnist)
+## [1] "train" "test"
+```
+
+
+### Simple Example
+
+```r
+# 1. Convert mnist features to an h2o input data set
+features <- as.h2o(mnist$train$images)
+
+# Train an autoencoder
+ae1 <- h2o.deeplearning(
+  x = seq_along(features),
+  training_frame = features,
+  # Sets the network as a autoencoder
+  autoencoder = TRUE,
+  # Hidden layer sizes
+  hidden = 2,
+  activation = 'Tanh',
+  # Speeds up computation when having many 0s
+  sparse = TRUE
+  
+)
+
+# Extract the deep features
+ae1_codings <- h2o.deepfeatures(ae1, features, layer = 1)
+ae1_codings
+##     DF.L1.C1    DF.L1.C2
+## 1 -0.1558956 -0.06456967
+## 2  0.3778544 -0.61518649
+## 3  0.2002303  0.31214266
+## 4 -0.6955515  0.13225607
+## 5  0.1912538  0.59865392
+## 6  0.2310982  0.20322605
+## 
+## [60000 rows x 2 columns]
+```
+
+## Adding additional depth
+
+![](chapter-img/19_chapter/05-autoencoder-symmetry.png)
+
+
+
+## References
+
+
+Lenny #2: Autoencoders and Word Embeddings: https://ayearofai.com/lenny-2-autoencoders-and-word-embeddings-oh-my-576403b0113a
+
+Autoencoder: https://en.wikipedia.org/wiki/Autoencoder#Variational_autoencoder_(VAE)
+
+Understanding Variational Autoencoders (VAEs): https://towardsdatascience.com/understanding-variational-autoencoders-vaes-f70510919f73
+
 
 ## Meeting Videos {-}
 
