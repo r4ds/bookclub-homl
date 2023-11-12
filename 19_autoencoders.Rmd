@@ -2,6 +2,18 @@
 
 **Learning objectives**
 
+- Defining autoencoders and some of its applications.
+
+- Explaining how to train, evaluate and tune undercomplete autoencoders using **h2o**
+
+- Explaining how to use autoencoders to find outlier observations.
+
+- Explaining how to train and evaluate denoising autoencoders using **h2o**
+
+- Explaining how to train, evaluate and tune sparse autoencoders using **h2o**
+
+- Listing some other popular autoencoders
+
 
 ## Main Concept 
 
@@ -30,7 +42,6 @@ $$
 - **Anomaly detection** by using the **reconstruction error** (like MSE) as an anomaly score to detect anomalies.
 
 - **Noise reduction** by  **applying random noise** to the input and asking the mode to recall the original (uncorrupted) input which forces the model focus its attention on the bigger picture.
-  
   
 - **Information retrieval** is the science of searching for information and auto-encoders can be used to:
 
@@ -74,13 +85,14 @@ names(mnist)
 
 ## Undercomplete autoencoders
 
-As the goal is to create a reduced set of codings that adequately represents $X$ **the number of neurons is less than the number of inputs** which help to capture *the most dominant features and signals*.
+As the goal is to create a reduced set of codings that adequately represents $X$ **the number of neurons is less than the number of inputs** which helps to *capture the most dominant features and signals in the data*.
+
 
 ### Comparing PCA to an autoencoder
 
 When an autoencoder uses only **linear activation functions** and **MSE as loss function**, then it can be shown that the autoencoder reduces to PCA.
 
-But when **nonlinear activation functions** are used, autoencoders provide nonlinear generalizations of PCA. Here you can see somo activation function:
+But when **nonlinear activation functions** are used, autoencoders provide nonlinear generalizations of PCA. Here you can see some activation functions:
 
 ![](chapter-img/19_chapter/07-activation-functions.webp)
 
@@ -113,7 +125,7 @@ ae1 <- h2o.deeplearning(
   # A single hidden layer with only two codings
   hidden = 2,
   
-  # Definig activation function
+  # Defining activation function
   activation = 'Tanh',
   
   # As 80% of the elements in the MNIST data set are zeros
@@ -166,7 +178,7 @@ digraph undercomplete_nn{
 
 ```
 
-Now we can extract the deep features.
+Now we can extract the deep features from the trained autoencoder.
 
 ```r
 ae1_codings <- h2o.deepfeatures(ae1, features, layer = 1)
@@ -182,17 +194,17 @@ ae1_codings
 ## [60000 rows x 2 columns]
 ```
 
-## Stacked autoencoders
+### Stacked autoencoders
 
 They have **multiple hidden layers** to represent *more complex, nonlinear relationships* at a reduced computational cost and often yield *better data compression*.
 
-As you can see bellow they typically follow a **symmetrical pattern**.
+As you can see bellow, they typically follow a **symmetrical pattern**.
 
 ![](chapter-img/19_chapter/05-autoencoder-symmetry.png)
 
 ### Tuning hidden layers configuration
 
-1. Creating a grid with different hidden layers configurations
+1. Creating a grid with different configurations for the hidden layers.
 
 ```r
 hyper_grid <- list(hidden = list(
@@ -280,18 +292,113 @@ for(i in seq_len(nrow(combine))) {
 
 ![](chapter-img/19_chapter/06-reconstructed-images-plot-1.png)
 
+### Anomaly detection
+
+Based on **reconstruction error**, we can find observations have feature attributes that differ significantly from the other features and can be considered as unusual or outliers.
+
+
+1. Get the reconstruction error.
+
+```r
+(reconstruction_errors <- h2o.anomaly(best_model, features))
+##   Reconstruction.MSE
+## 1        0.009879666
+## 2        0.006485201
+## 3        0.017470110
+## 4        0.002339352
+## 5        0.006077669
+## 6        0.007171287
+## 
+## [60000 rows x 1 column]
+```
+
+2. Plotting the distribution with a histogram or boxplot.
+
+```r
+reconstruction_errors <- as.data.frame(reconstruction_errors)
+ggplot(reconstruction_errors, aes(Reconstruction.MSE)) +
+  geom_histogram()
+```
+
+![](chapter-img/19_chapter/11-reconstruction-error-plot.png)
+
+3. Retrain the autoencoder on a subset of the inputs that represent high quality inputs like the observations under the 75-th percentile of *reconstruction error*.
+
+4. Select the observations with the highest *reconstruction error*.
+
+![](chapter-img/19_chapter/12-worst-reconstruction-errors.png)
+
+## Denoising autoencoders
+
+We train the autoencoder to **reconstruct the original** input from a **corrupted copy** of it, which forces the codings to learn more robust features even when the number of *codings is greater than the number of inputs*.
+
+In this case:
+
+- The *encoder function* should preserve the essential signals.
+- The *decoder function* tries to undo the effects of a corruption.
+
+![](chapter-img/19_chapter/10-plot-denoise-results-1.png)
+
+### Corruption process
+
+- Randomly set some of the inputs (as many as half of them) to zero or one.
+- For continuous-valued inputs, we can add Gaussian noise.
+
+
+### Coding example
+
+1. Train the model.
+
+```r
+denoise_ae <- h2o.deeplearning(
+  x = seq_along(features),
+  
+  # Currupted features
+  training_frame = inputs_currupted_gaussian,
+  
+  # Original features
+  validation_frame = features,
+  
+  autoencoder = TRUE,
+  hidden = 100,
+  activation = 'Tanh',
+  sparse = TRUE
+)
+
+```
+
+2. Evaluating the model.
+
+```r
+# Print performance
+h2o.performance(denoise_ae, valid = TRUE)
+## H2OAutoEncoderMetrics: deeplearning
+## ** Reported on validation data. **
+## 
+## Validation Set Metrics: 
+## =====================
+## 
+## MSE: (Extract with `h2o.mse`) 0.02048465
+## RMSE: (Extract with `h2o.rmse`) 0.1431246
+```
+
 ## Sparse autoencoders
 
-They are used to pull out **the most influential feature** representations which helps to:
+They are used to extract **the most influential feature** representations, which helps to:
 
 - Understand what are **the most unique features** of a data set
 - Highlight the **unique signals** across the features.
+
+![](chapter-img/19_chapter/09-plot-sparsity-comparisons-1.png)
+
+### Mathematical description
 
 In the context of *tanh activation function*, we consider a neuron active if the output value is closer to 1 and inactive if its output is closer to -1, but we can **increase the number of inactive neurons** by incorporating **sparsity** (*average activation of the coding layer*).
 
 $$
 \hat{\rho} = \frac{1}{m} \sum_{i=1}^m A(X)
 $$
+
 Let's get it from our example:
 
 ```r
@@ -321,13 +428,18 @@ $$
 
 > Adding sparsity can force the model to represent each input as a combination of a smaller number of activations.
 
-### Tuning sparsity β parameter
+
+### Tuning sparsity $\beta$ parameter
+
+1. Defining an evaluation grid for the $\beta$ parameter.
 
 ```r
-# Hyperparameter search grid
 hyper_grid <- list(sparsity_beta = c(0.01, 0.05, 0.1, 0.2))
+```
 
-# Execute grid search
+2. Training a model for each option
+
+```r
 ae_sparsity_grid <- h2o.grid(
   algorithm = 'deeplearning',
   x = seq_along(features),
@@ -342,8 +454,11 @@ ae_sparsity_grid <- h2o.grid(
   ignore_const_cols = FALSE,
   seed = 123
 )
+```
 
-# Print grid details
+3. Identifying the best option.
+
+```r
 h2o.getGrid('sparsity_grid', sort_by = 'mse', decreasing = FALSE)
 ## H2O Grid Details
 ## ================
@@ -361,6 +476,18 @@ h2o.getGrid('sparsity_grid', sort_by = 'mse', decreasing = FALSE)
 ## 3          0.05 sparsity_grid_model_2  0.01337749148043942
 ## 4           0.1 sparsity_grid_model_3 0.013516631653257992
 ```
+
+## Alternative autoencoders
+
+- **Variational autoencoders** are a form of generative autoencoders, which means they can be used to create new instances that closely resemble the input data but are completely generated from the coding distributions.
+
+- **Adversarial autoencoders** train two networks: (I) a *generator network* to reconstruct the inputs similar to a regular autoencoder and then (II) a *discriminator network* to compute where the inputs lie on a probabilistic distribution and improve the generator.
+
+- **Contractive autoencoders** similar to *denoising autoencoders* constrain the derivative of the hidden layer(s) activations to be small with respect to the inputs.
+
+- **Winner-take-all autoencoders** leverage only the top X% activations for each neuron, while the rest are set to zero.
+
+- **Stacked convolutional autoencoders** are designed to reconstruct visual features processed through convolutional layers without transforming the image to vectors.
 
 ## Additinal references
 
